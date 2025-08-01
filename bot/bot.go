@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -15,52 +14,61 @@ var (
 	Token   = ""
 	// AiToken = ""
 
-	commands = []discordgo.ApplicationCommand{
-		{
-			Name:        "ship",
-			Description: "ship 2 users",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionUser,
-					Name:        "user1",
-					Description: "first user to ship",
-					Required:    true,
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionUser,
-					Name:        "user2",
-					Description: "second user to ship",
-					Required:    true,
-				},
+	command = discordgo.ApplicationCommand{
+		Name:        "ship",
+		Description: "ship 2 users",
+		Options: []*discordgo.ApplicationCommandOption{
+			{
+				Type:        discordgo.ApplicationCommandOptionUser,
+				Name:        "user1",
+				Description: "first user to ship",
+				Required:    true,
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionUser,
+				Name:        "user2",
+				Description: "second user to ship",
+				Required:    true,
 			},
 		},
+	}
+
+	commandHandler = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		options := i.ApplicationCommandData().Options
+		user1 := options[0].UserValue(s)
+		user2 := options[1].UserValue(s)
+		msg := fmt.Sprintf("<@%v> 💘 <@%v>", user1.ID, user2.ID)
+
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: msg,
+			},
+		})
 	}
 )
 
 func Run() {
-	dg, err := discordgo.New("Bot " + Token)
+	s, err := discordgo.New("Bot " + Token)
 	if err != nil {
 		log.Fatalf("couldn't create session: %v", err)
 	}
 
-	dg.AddHandler(newMessage) // TODO
+	s.AddHandler(commandHandler)
 
-	if err := dg.Open(); err != nil {
+	if err := s.Open(); err != nil {
 		log.Fatalf("couldn't open connection: %v", err)
 	}
-	defer dg.Close()
+	defer s.Close()
 
-	// TODO app cmd
+	_, err = s.ApplicationCommandCreate(s.State.User.ID, GuildID, &command)
+	if err != nil {
+		log.Fatalf("couldn't create '%v' command: %v", command.Name, err)
+	}
 
 	fmt.Println("bot running!")
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	<-c
-}
-
-func newMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if strings.Contains(m.Content, "bot") {
-		s.ChannelMessageSend(m.ChannelID, "Hello world!")
-	}
 }
