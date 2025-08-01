@@ -11,20 +11,46 @@ import (
 )
 
 var (
-	Token = ""
+	GuildID = "" // test guild id, if not specified bot will register cmds globally
+	Token   = ""
 	// AiToken = ""
+
+	commands = []discordgo.ApplicationCommand{
+		{
+			Name:        "ship",
+			Description: "ship 2 users",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionUser,
+					Name:        "user1",
+					Description: "first user to ship",
+					Required:    true,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionUser,
+					Name:        "user2",
+					Description: "second user to ship",
+					Required:    true,
+				},
+			},
+		},
+	}
 )
 
 func Run() {
 	dg, err := discordgo.New("Bot " + Token)
 	if err != nil {
-		log.Fatalf("couldn't connect to discord: %v", err)
+		log.Fatalf("couldn't create session: %v", err)
 	}
 
-	dg.AddHandler(newMessage)
+	dg.AddHandler(newMessage) // TODO
 
-	dg.Open()
+	if err := dg.Open(); err != nil {
+		log.Fatalf("couldn't open connection: %v", err)
+	}
 	defer dg.Close()
+
+	// TODO app cmd
 
 	fmt.Println("bot running!")
 
@@ -33,8 +59,8 @@ func Run() {
 	<-c
 }
 
-func newMessage(dg *discordgo.Session, msg *discordgo.MessageCreate) {
-	if strings.Contains(msg.Content, "bot") {
-		dg.ChannelMessageSend(msg.ChannelID, "Hello world!")
+func newMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if strings.Contains(m.Content, "bot") {
+		s.ChannelMessageSend(m.ChannelID, "Hello world!")
 	}
 }
