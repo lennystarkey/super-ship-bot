@@ -1,9 +1,5 @@
 package compatibility
 
-import (
-	"github.com/bwmarrin/discordgo"
-)
-
 type Score struct {
 	User1      Analysis
 	User2      Analysis
@@ -16,6 +12,6 @@ type Analysis struct {
 	Favorites []string
 }
 
-func Assess(u1, u2 discordgo.User) Score {
+func Assess(u1, u2 string) Score {
 	return Score{}
 }
