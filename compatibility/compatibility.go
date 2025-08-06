@@ -6,21 +6,21 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net/http"
 )
 
 type Result struct {
-	User1 Analysis
-	User2 Analysis
-	Story string
-	Style string
+	User1         Analysis
+	User2         Analysis
+	Story         string
+	Style         string
+	Compatibility float64
 }
 
 type Analysis struct {
 	Sentiment string
-	// Formality float64
-	// Favorites []string
 }
 
 type tcResp struct {
@@ -38,26 +38,32 @@ var (
 	styles = []string{"Shakespeare", "a biblical prophet", "a toddler", "a medieval knight", "gen alpha brainrot slang"}
 )
 
-func Assess(u1, u2 string) (Result, error) {
+func Assess(u1history, u2history string) (Result, error) {
 	r := Result{}
-	m, err := queryTextClassificationApi(u1)
-	if err != nil {
-		return Result{}, err
-	}
-	r.User1.Sentiment = highest(m)
-	m, err = queryTextClassificationApi(u2)
-	if err != nil {
-		return Result{}, err
-	}
-	r.User2.Sentiment = highest(m)
 
+	//most likely sentiment per user
+	m1, err := queryTextClassificationApi(u1history)
+	if err != nil {
+		return Result{}, err
+	}
+	r.User1.Sentiment = highest(m1)
+	m2, err := queryTextClassificationApi(u2history)
+	if err != nil {
+		return Result{}, err
+	}
+	r.User2.Sentiment = highest(m2)
+
+	//mean absolute difference between user sentiment datasets
+	r.Compatibility = meanAbsoluteDiff(m1, m2)
+
+	//ai writup
 	r.Style = styles[rand.Intn(len(styles))]
-	p := fmt.Sprintf("200 characters. dramatically describe the relationship between someone with %v emotions and someone with %v emotions, in the style of %v. Make sure to use complete sentences.", r.User1.Sentiment, r.User2.Sentiment, r.Style)
+	p := fmt.Sprintf("200 characters. Would a relationship between someone with %v emotions and someone with %v emotions work out? Tell me in the style of %v. Make sure to use complete sentences.", r.User1.Sentiment, r.User2.Sentiment, r.Style)
 	s, err := queryTextGenerationApi(p)
 	if err != nil {
 		return Result{}, err
 	}
-	r.Story = s
+	r.Story = fmt.Sprintf("**In the words of %v:**\n%v", r.Style, s)
 
 	return r, nil
 }
@@ -150,4 +156,29 @@ func highest(m map[string]float64) string {
 	}
 
 	return mk
+}
+
+func meanAbsoluteDiff(map1, map2 map[string]float64) float64 {
+	if len(map1) != len(map2) {
+		return 0.0
+	}
+	fmt.Println(map1)
+	fmt.Println(map2)
+
+	totalDistance := 0.0
+	count := 0
+
+	for key, val1 := range map1 {
+		val2, ok := map2[key]
+		if !ok {
+			totalDistance += val1
+		}
+		totalDistance += math.Abs(val1 - val2)
+		count++
+	}
+
+	if count == 0 {
+		return 0.0
+	}
+	return totalDistance / float64(count)
 }
