@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"ship/compatibility"
 	"slices"
 	"strings"
 
@@ -65,22 +66,31 @@ func Run() {
 }
 
 func handleShip(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// defer response immediately
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+	})
 	options := i.ApplicationCommandData().Options
 	user1 := options[0].UserValue(s)
 	user2 := options[1].UserValue(s)
-	msg := fmt.Sprintf("<@%v> 💘 <@%v>", user1.ID, user2.ID)
+	msg := fmt.Sprintf("<@%v> 💘 <@%v>\n\n", user1.ID, user2.ID)
 	u1data, u2data, err := getHistory(s, i.ChannelID, *user1, *user2)
 	if err != nil {
 		log.Fatalf("error getting history: %v", err)
 	}
-	msg += "\n" + u1data + "\n" + u2data
+	result, err := compatibility.Assess(u1data, u2data)
+	if err != nil {
+		log.Fatalf("error getting compatibility assessment: %v", err)
+	}
+	msg += fmt.Sprintf("%v:\nSentiment:%v\n\n", user1.DisplayName(), result.User1.Sentiment)
+	msg += fmt.Sprintf("%v:\nSentiment:%v\n\n", user2.DisplayName(), result.User2.Sentiment)
 
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: msg,
-		},
+	_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+		Content: msg,
 	})
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 // gets the last *MessageCount messages for two users in the server, and returns them as a string separated by \n.
@@ -134,4 +144,3 @@ out:
 func preprocess(text string) string {
 	return text
 }
-

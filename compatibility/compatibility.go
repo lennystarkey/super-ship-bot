@@ -3,7 +3,6 @@ package compatibility
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,9 +16,9 @@ type Result struct {
 }
 
 type Analysis struct {
-	Formality float64
-	Sentiment float64
-	Favorites []string
+	Sentiment string
+	// Formality float64
+	// Favorites []string
 }
 
 type apiResponse struct {
@@ -28,16 +27,24 @@ type apiResponse struct {
 }
 
 var (
-	hfToken           = flag.String("hfToken", "", "token")
-	sentimentAnalysis = "https://router.huggingface.co/hf-inference/models/tabularisai/multilingual-sentiment-analysis"
+	HfToken = flag.String("hfToken", "", "token")
+	// sentiment = "https://router.huggingface.co/hf-inference/models/tabularisai/multilingual-sentiment-analysis"
+	sentiment = "https://router.huggingface.co/hf-inference/models/j-hartmann/emotion-english-distilroberta-base"
 )
 
 func Assess(u1, u2 string) (Result, error) {
-	if len(*hfToken) == 0 {
-		return Result{}, errors.New("please provide Hugging Face Inference API token")
+	r := Result{}
+	m, err := queryApi(sentiment, u1)
+	if err != nil {
+		return Result{}, err
 	}
-
-	return Result{}, nil
+	r.User1.Sentiment = highest(m)
+	m, err = queryApi(sentiment, u2)
+	if err != nil {
+		return Result{}, err
+	}
+	r.User2.Sentiment = highest(m)
+	return r, nil
 }
 
 // queries a map of scores from an hf inference
@@ -50,7 +57,7 @@ func queryApi(url, input string) (map[string]float64, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", *hfToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", *HfToken))
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -74,4 +81,24 @@ func queryApi(url, input string) (map[string]float64, error) {
 		m[r.Label] = r.Score
 	}
 	return m, nil
+}
+
+func highest(m map[string]float64) string {
+	if len(m) == 0 {
+		return ""
+	}
+
+	var mk string
+	var mv float64
+	first := true
+
+	for k, v := range m {
+		if first || v > mv {
+			mk = k
+			mv = v
+			first = false
+		}
+	}
+
+	return mk
 }

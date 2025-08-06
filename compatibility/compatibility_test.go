@@ -13,7 +13,7 @@ func TestRequestScore(t *testing.T) {
 	}
 	for _, c := range content {
 		fmt.Println(c)
-		m, err := queryApi(sentimentAnalysis, c)
+		m, err := queryApi(sentiment, c)
 		if err != nil {
 			t.Fatal(err)
 		}
