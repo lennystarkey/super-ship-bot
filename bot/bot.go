@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -35,24 +36,7 @@ var (
 		},
 	}
 
-	commandHandler = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		options := i.ApplicationCommandData().Options
-		user1 := options[0].UserValue(s)
-		user2 := options[1].UserValue(s)
-		msg := fmt.Sprintf("<@%v> 💘 <@%v>", user1.ID, user2.ID)
-		u1data, u2data, err := getHistory(s, i.ChannelID, *user1, *user2)
-		if err != nil {
-			log.Fatalf("error getting history: %v", err)
-		}
-		msg += "\n" + u1data + "\n" + u2data
-
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: msg,
-			},
-		})
-	}
+	commandHandler = handleShip
 )
 
 func Run() {
@@ -80,6 +64,25 @@ func Run() {
 	<-c
 }
 
+func handleShip(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	options := i.ApplicationCommandData().Options
+	user1 := options[0].UserValue(s)
+	user2 := options[1].UserValue(s)
+	msg := fmt.Sprintf("<@%v> 💘 <@%v>", user1.ID, user2.ID)
+	u1data, u2data, err := getHistory(s, i.ChannelID, *user1, *user2)
+	if err != nil {
+		log.Fatalf("error getting history: %v", err)
+	}
+	msg += "\n" + u1data + "\n" + u2data
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: msg,
+		},
+	})
+}
+
 // gets the last *MessageCount messages for two users in the server, and returns them as a string separated by \n.
 func getHistory(s *discordgo.Session, cid string, user1, user2 discordgo.User) (string, string, error) {
 	history, err := s.ChannelMessages(cid, 100, "", "", "")
@@ -90,20 +93,25 @@ func getHistory(s *discordgo.Session, cid string, user1, user2 discordgo.User) (
 	uid2 := user2.ID
 	u1data := []string{}
 	u2data := []string{}
+out:
 	for len(u1data) < *MessageCount && len(u2data) < *MessageCount {
 		for _, msg := range history {
 			if msg.Author.ID == uid1 && len(u1data) < *MessageCount {
 				u1data = append(u1data, msg.Content)
+				fmt.Println("appended to u1data")
 			}
 			if msg.Author.ID == uid2 && len(u2data) < *MessageCount {
 				u2data = append(u2data, msg.Content)
+				fmt.Println("appended to u2data")
 			}
 			if len(u1data) == *MessageCount && len(u2data) == *MessageCount {
-				break // we did it!
+				fmt.Println("did it!")
+				break out // we did it!
 			}
 		}
 		// we couldn't find enough (*MessageCount) messages by both users in the last 100 messages
 		// in this channel, so we'll have to scan another batch.
+		fmt.Println("scanning new batch...")
 		first := history[0].ID
 		history, err = s.ChannelMessages(cid, 100, first, "", "")
 		if err != nil {
@@ -115,6 +123,15 @@ func getHistory(s *discordgo.Session, cid string, user1, user2 discordgo.User) (
 			}
 		}
 	}
+	// put the msgs in chronological order
+	slices.Reverse(u1data)
+	slices.Reverse(u2data)
 
-	return strings.Join(u1data, "\n"), strings.Join(u2data, "\n"), nil
+	return preprocess(strings.Join(u1data, "\n")), preprocess(strings.Join(u2data, "\n")), nil
 }
+
+// TODO
+func preprocess(text string) string {
+	return text
+}
+
