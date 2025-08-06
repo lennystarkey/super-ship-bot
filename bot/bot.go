@@ -82,8 +82,10 @@ func handleShip(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if err != nil {
 		log.Fatalf("error getting compatibility assessment: %v", err)
 	}
-	msg += fmt.Sprintf("%v:\nSentiment:%v\n\n", user1.DisplayName(), result.User1.Sentiment)
-	msg += fmt.Sprintf("%v:\nSentiment:%v\n\n", user2.DisplayName(), result.User2.Sentiment)
+	msg += fmt.Sprintf("%v:\nSentiment: %v\n", user1.DisplayName(), result.User1.Sentiment)
+	msg += fmt.Sprintf("%v:\nSentiment: %v\n\n", user2.DisplayName(), result.User2.Sentiment)
+	msg += fmt.Sprintf("According to **%v**...\n", result.Style)
+	msg += result.Story
 
 	_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 		Content: msg,

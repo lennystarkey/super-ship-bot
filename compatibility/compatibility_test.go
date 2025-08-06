@@ -13,11 +13,15 @@ func TestRequestScore(t *testing.T) {
 	}
 	for _, c := range content {
 		fmt.Println(c)
-		m, err := queryApi(sentiment, c)
+		m, err := queryTextClassificationApi(c)
 		if err != nil {
 			t.Fatal(err)
 		}
 		fmt.Println(m)
 	}
-
+	m, err := queryTextGenerationApi(content[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(m)
 }
