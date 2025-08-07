@@ -1,20 +1,17 @@
 package bot
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
-	"image/color"
 	"log"
-	"math"
 	"os"
 	"os/signal"
+	"ship/bar"
 	"ship/compatibility"
 	"slices"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/fogleman/gg"
 )
 
 var (
@@ -88,44 +85,30 @@ func handleShip(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	percentage := result.Compatibility * 2 // progress bar is really low otherwise
 	if percentage > 1 {
-		fmt.Println("percentage > 1")
+		log.Print("percentage > 1")
 		percentage = 1
-	}
-	imgData, err := generateProgressBarImage(percentage)
-	if err != nil {
-		log.Printf("Error generating image: %v", err)
-		return
 	}
 
 	embed := &discordgo.MessageEmbed{
 		Title:       "SuperShip! 🚀",
-		Description: "Checking compatibility...",
+		Description: fmt.Sprintf("<@%v> 💘 <@%v>", user1.ID, user2.ID),
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name:  "SHIP",
-				Value: fmt.Sprintf("<@%v> 💘 <@%v>\n**SUCCESS**", user1.ID, user2.ID),
+				Value: fmt.Sprintf("<@%v> 💘 <@%v>\n%v", user1.ID, user2.ID, bar.Generate(percentage)),
 			},
 			{
 				Value: result.Story,
 			},
-		},
-		Image: &discordgo.MessageEmbedImage{
-			URL: "attachment://progress.png",
 		},
 		Color: 0xff0000,
 	}
 
 	_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 		Embeds: []*discordgo.MessageEmbed{embed},
-		Files: []*discordgo.File{
-			{
-				Name:   "progress.png",
-				Reader: bytes.NewReader(imgData),
-			},
-		},
 	})
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("error sending follow-up message: %v", err)
 	}
 }
 
@@ -179,35 +162,4 @@ out:
 // TODO
 func preprocess(text string) string {
 	return text
-}
-
-func generateProgressBarImage(percentage float64) ([]byte, error) {
-	// Create a 200x50 pixel image
-	dc := gg.NewContext(200, 50)
-	dc.SetColor(color.RGBA{100, 100, 100, 255}) // Gray background
-	dc.Clear()
-
-	// Draw filled portion
-	filledWidth := int(math.Round((percentage) * 200))
-
-	c := color.RGBA{}
-	switch {
-	case percentage > 0.67:
-		c = color.RGBA{0, 255, 0, 255}
-	case percentage > 0.33:
-		c = color.RGBA{255, 255, 0, 255}
-	default:
-		c = color.RGBA{255, 0, 0, 255}
-	}
-	dc.SetColor(c)
-	dc.DrawRectangle(0, 0, float64(filledWidth), 50)
-	dc.Fill()
-
-	// Encode to PNG
-	var buf bytes.Buffer
-	err := dc.EncodePNG(&buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
