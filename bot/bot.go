@@ -47,6 +47,8 @@ func Run() {
 		log.Fatalf("couldn't create session: %v", err)
 	}
 
+	s.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages
+
 	s.AddHandler(commandHandler)
 
 	if err := s.Open(); err != nil {
@@ -75,12 +77,28 @@ func handleShip(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	user1 := options[0].UserValue(s)
 	user2 := options[1].UserValue(s)
 	u1data, u2data, err := getHistory(s, i.ChannelID, *user1, *user2)
+	var errs []error
 	if err != nil {
-		log.Fatalf("error getting history: %v", err)
+		errs = append(errs, fmt.Errorf("error getting history: %w", err))
 	}
 	result, err := compatibility.Assess(u1data, u2data)
 	if err != nil {
-		log.Fatalf("error getting compatibility assessment: %v", err)
+		errs = append(errs, fmt.Errorf("error getting compatibility assessment: %w", err))
+	}
+	if len(errs) > 0 {
+		log.Print(errs)
+		_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+			Embeds: []*discordgo.MessageEmbed{
+				{
+					Fields: []*discordgo.MessageEmbedField{
+						{
+							Value: "😖 oops, we had an error. try again later.",
+						},
+					},
+				},
+			},
+		})
+		return
 	}
 
 	percentage := result.Compatibility * 2 // progress bar is really low otherwise
