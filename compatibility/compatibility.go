@@ -3,24 +3,23 @@ package compatibility
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"net/http"
 )
 
 type Result struct {
 	User1         Analysis
 	User2         Analysis
-	Story         string
-	Style         string
 	Compatibility float64
 }
 
 type Analysis struct {
 	Sentiment string
+	Emoji     string
 }
 
 type tcResp struct {
@@ -35,37 +34,60 @@ var (
 	textGenerationApi     = "https://router.huggingface.co/v1/chat/completions"
 	textGenerationModel   = "openai/gpt-oss-20b:novita"
 
-	styles = []string{"Shakespeare", "a biblical prophet", "a toddler", "a medieval knight", "gen alpha brainrot slang"}
+	emotions = map[string]string{
+		"anger":    "🤬",
+		"disgust":  "🤢",
+		"fear":     "😨",
+		"joy":      "😀",
+		"neutral":  "😐",
+		"sadness":  "😭",
+		"surprise": "😲",
+	}
 )
 
 func Assess(u1history, u2history string) (Result, error) {
 	r := Result{}
 
-	//most likely sentiment per user
-	m1, err := queryTextClassificationApi(u1history)
+	m1, a1, err := analysis(u1history)
 	if err != nil {
 		return Result{}, err
 	}
-	r.User1.Sentiment = highest(m1)
-	m2, err := queryTextClassificationApi(u2history)
+	m2, a2, err := analysis(u2history)
 	if err != nil {
 		return Result{}, err
 	}
-	r.User2.Sentiment = highest(m2)
 
 	//mean absolute difference between user sentiment datasets
 	r.Compatibility = meanAbsoluteDiff(m1, m2)
-
-	//ai writup
-	r.Style = styles[rand.Intn(len(styles))]
-	p := fmt.Sprintf("200 characters. Would a relationship between someone with %v emotions and someone with %v emotions work out? Tell me in the style of %v. Make sure to use complete sentences.", r.User1.Sentiment, r.User2.Sentiment, r.Style)
-	s, err := queryTextGenerationApi(p)
-	if err != nil {
-		return Result{}, err
-	}
-	r.Story = fmt.Sprintf("**In the words of %v:**\n%v", r.Style, s)
+	r.User1 = a1
+	r.User2 = a2
 
 	return r, nil
+}
+
+func AskSomeone(u1history, u2history, style string) (string, error) {
+	r, err := Assess(u1history, u2history)
+	p := fmt.Sprintf("200 characters or fewer. Would a relationship between someone with %v emotions and someone with %v emotions work out? Tell me in the style of %v. Make sure to use complete sentences.", r.User1.Sentiment, r.User2.Sentiment, style)
+	s, err := queryTextGenerationApi(p)
+	if err != nil {
+		return "", err
+	}
+	return s, nil
+}
+
+func analysis(h string) (map[string]float64, Analysis, error) {
+	var a Analysis
+	m, err := queryTextClassificationApi(h)
+	if err != nil {
+		return nil, Analysis{}, err
+	}
+	a.Sentiment = highest(m)
+	emoji, ok := emotions[a.Sentiment]
+	if !ok {
+		return nil, Analysis{}, errors.New("recieved invalid sentiment")
+	}
+	a.Emoji = emoji
+	return m, a, nil
 }
 
 // queries a map of scores from an hf inference

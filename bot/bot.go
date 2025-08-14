@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"ship/bar"
@@ -50,6 +51,7 @@ func Run() {
 	s.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages
 
 	s.AddHandler(commandHandler)
+	// s.AddHandler(handleComponentInteraction)
 
 	if err := s.Open(); err != nil {
 		log.Fatalf("couldn't open connection: %v", err)
@@ -74,6 +76,7 @@ func handleShip(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 	})
 	options := i.ApplicationCommandData().Options
+
 	user1 := options[0].UserValue(s)
 	user2 := options[1].UserValue(s)
 	u1data, u2data, err := getHistory(s, i.ChannelID, *user1, *user2)
@@ -87,17 +90,7 @@ func handleShip(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 	if len(errs) > 0 {
 		log.Print(errs)
-		_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
-			Embeds: []*discordgo.MessageEmbed{
-				{
-					Fields: []*discordgo.MessageEmbedField{
-						{
-							Value: "😖 oops, we had an error. try again later.",
-						},
-					},
-				},
-			},
-		})
+		sendErrorMsg(s, i)
 		return
 	}
 
@@ -107,26 +100,92 @@ func handleShip(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		percentage = 1
 	}
 
-	embed := &discordgo.MessageEmbed{
-		Title:       "SuperShip! 🚀",
-		Description: fmt.Sprintf("<@%v> 💘 <@%v>", user1.ID, user2.ID),
-		Fields: []*discordgo.MessageEmbedField{
-			{
-				Name:  "SHIP",
-				Value: fmt.Sprintf("<@%v> 💘 <@%v>\n%v", user1.ID, user2.ID, bar.Generate(percentage)),
-			},
-			{
-				Value: result.Story,
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "Ask someone... 🔮",
+					Style:    discordgo.PrimaryButton,
+					CustomID: "ask",
+				},
 			},
 		},
-		Color: 0xff0000,
+	}
+
+	embed := &discordgo.MessageEmbed{
+		Title: "SuperShip! 🚀",
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Value: fmt.Sprintf("<@%v> %v\n<@%v> %v\n%v", user1.ID, result.User1.Emoji, user2.ID, result.User2.Emoji, bar.Generate(percentage)),
+			},
+		},
+		Color: rand.Intn(0xFFFFFF),
 	}
 
 	_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
-		Embeds: []*discordgo.MessageEmbed{embed},
+		Embeds:     []*discordgo.MessageEmbed{embed},
+		Components: components,
 	})
 	if err != nil {
 		log.Printf("error sending follow-up message: %v", err)
+	}
+}
+
+// func handleComponentInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+// 	if i.Type != discordgo.InteractionMessageComponent {
+// 		return
+// 	}
+// 	if i.MessageComponentData().CustomID == "ask" {
+// 		styles := []string{"Shakespeare", "a biblical prophet", "a toddler", "a medieval knight", "gen alpha brainrot slang"}
+// 		// TODO add random gif
+// 		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+// 			Type: discordgo.InteractionResponseChannelMessageWithSource,
+// 			Data: &discordgo.InteractionResponseData{
+// 				Content: fmt.Sprintf("*Transmitting your message to **%v**...* 🔮", styles[rand.Intn(len(styles))]),
+// 			},
+// 		})
+// 		if err != nil {
+// 			log.Printf("error responding to button interaction: %v", err)
+// 			return
+// 		}
+// 		msg, err := compatibility.AskSomeone(result)
+// 		if err != nil {
+// 			log.Printf("error getting story: %v", err)
+// 			sendErrorMsg(s, i)
+// 			return
+// 		}
+// 		embed := &discordgo.MessageEmbed{
+// 			Title: fmt.Sprintf("According to %v:", result.Style),
+// 			Fields: []*discordgo.MessageEmbedField{
+// 				{
+// 					Value: msg,
+// 				},
+// 			},
+// 			Color: 0xAA00AA,
+// 		}
+// 		e := ""
+// 		_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+// 			Embeds:  &[]*discordgo.MessageEmbed{embed},
+// 			Content: &e,
+// 		})
+
+// 	}
+// }
+
+func sendErrorMsg(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	_, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+		Embeds: []*discordgo.MessageEmbed{
+			{
+				Fields: []*discordgo.MessageEmbedField{
+					{
+						Value: "😖 oops, we had an error. try again later.",
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		log.Print(err)
 	}
 }
 
